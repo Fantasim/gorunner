@@ -5,6 +5,14 @@ type Runner struct {
 	process func() error
 }
 
+func NewRunner(taskID string) *Runner {
+	task := NewTask(taskID)
+	return &Runner{
+		Task:    task,
+		process: nil,
+	}
+}
+
 func NewRunnerWithRetryCount(taskID string, retryCount int) *Runner {
 	task := NewTask(taskID)
 	task.retry = retryCount
