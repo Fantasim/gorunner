@@ -109,8 +109,8 @@ func (task *Task) LastStep() time.Time {
 	return task.Steps[len(task.Steps)-1]
 }
 
-func GetArg[T any](r *Runner, key string) (T, bool) {
-	if val, ok := r.Args[key]; ok {
+func GetArg[T any](args map[string]interface{}, key string) (T, bool) {
+	if val, ok := args[key]; ok {
 		typedVal, ok := val.(T)
 		return typedVal, ok
 	}
