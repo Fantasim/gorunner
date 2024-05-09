@@ -62,11 +62,11 @@ func (task *Task) IncrementStatValue(stat string, value int64) {
 	task.StatValues[stat] += value
 }
 
-func (task *Task) Start() {
+func (task *Task) start() {
 	task.startedAt = time.Now()
 }
 
-func (task *Task) End() {
+func (task *Task) end() {
 	task.endedAt = time.Now()
 }
 

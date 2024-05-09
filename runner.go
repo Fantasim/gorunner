@@ -33,8 +33,8 @@ func (r *Runner) Run() error {
 		if r.HasStarted() {
 			return nil
 		}
-		r.Task.Start()
-		defer r.Task.End()
+		r.Task.start()
+		defer r.Task.end()
 		err := r.process()
 		r.SetError(err)
 		return err
