@@ -29,7 +29,7 @@ func (t *Task) AddArgs(key string, v interface{}) {
 	t.Args[key] = v
 }
 
-func NewTask(ID string) *Task {
+func newTask(ID string) *Task {
 	return &Task{
 		ID:         ID,
 		err:        nil,
@@ -109,8 +109,8 @@ func (task *Task) LastStep() time.Time {
 	return task.Steps[len(task.Steps)-1]
 }
 
-func GetArg[T any](task *Task, key string) (T, bool) {
-	if val, ok := task.Args[key]; ok {
+func GetArg[T any](r *Runner, key string) (T, bool) {
+	if val, ok := r.Args[key]; ok {
 		typedVal, ok := val.(T)
 		return typedVal, ok
 	}

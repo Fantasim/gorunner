@@ -6,7 +6,7 @@ type Runner struct {
 }
 
 func NewRunner(taskID string) *Runner {
-	task := NewTask(taskID)
+	task := newTask(taskID)
 	return &Runner{
 		Task:    task,
 		process: nil,
@@ -14,7 +14,7 @@ func NewRunner(taskID string) *Runner {
 }
 
 func NewRunnerWithRetryCount(taskID string, retryCount int) *Runner {
-	task := NewTask(taskID)
+	task := newTask(taskID)
 	task.retry = retryCount
 
 	return &Runner{
