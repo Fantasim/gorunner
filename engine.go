@@ -37,8 +37,8 @@ func (e *Engine) WaitForRunningTasks() {
 
 func (engine *Engine) CountRunning() int {
 	count := 0
-	for _, parser := range engine.Runners {
-		if parser.Task.IsRunning() {
+	for _, runner := range engine.Runners {
+		if runner.IsRunning() {
 			count++
 		}
 	}
@@ -88,7 +88,7 @@ func (engine *Engine) PrintStatus() {
 	fmt.Printf("Engine status: Running: %d, Done: %d, Waiting: %d\n", countRunning, len(engine.Done), len(engine.Runners)-countRunning)
 }
 
-func (engine *Engine) handleParserDone() {
+func (engine *Engine) handleRunnersDone() {
 	for _, runner := range engine.Runners {
 		task := runner.Task
 
@@ -123,7 +123,7 @@ func (engine *Engine) Execute() {
 		return
 	}
 
-	engine.handleParserDone()
+	engine.handleRunnersDone()
 
 	for _, runner := range engine.Runners {
 		if !runner.Task.IsDone() && !runner.Task.IsRunning() {
@@ -177,11 +177,13 @@ func (engine *Engine) StopAll() {
 			time.Sleep(4 * time.Second)
 		}
 	}()
-	for _, parser := range engine.Runners {
-		if !parser.Task.IsRunning() {
-			engine.Remove(parser)
+	for _, runner := range engine.Runners {
+		if !runner.Task.IsRunning() {
+			engine.Remove(runner)
+		} else {
+			runner.Interrupt()
 		}
 	}
 	engine.WaitForRunningTasks()
-	//Stop the sets
+	engine = NewEngine(&engine.options)
 }
