@@ -1,6 +1,7 @@
 package gorunner
 
 import (
+	"sync/atomic"
 	"time"
 )
 
@@ -12,7 +13,7 @@ type Task struct {
 
 	//logging
 	Steps      []time.Time
-	StatValues map[string]int64
+	statValues map[string]*atomic.Int64
 
 	//args
 	Args map[string]interface{}
@@ -34,7 +35,8 @@ func newTask(ID string) *Task {
 		ID:         ID,
 		err:        nil,
 		Steps:      []time.Time{},
-		StatValues: map[string]int64{},
+		statValues: map[string]*atomic.Int64{},
+		Args:       map[string]interface{}{},
 	}
 }
 
@@ -55,11 +57,20 @@ func (task *Task) AddStep() {
 	task.Steps = append(task.Steps, time.Now())
 }
 
-func (task *Task) IncrementStatValue(stat string, value int64) {
-	if _, ok := task.StatValues[stat]; !ok {
-		task.StatValues[stat] = value
+func (task *Task) StatValue(key string) int64 {
+	v, ok := task.statValues[key]
+	if ok {
+		return v.Add(0)
 	}
-	task.StatValues[stat] += value
+	return 0
+}
+
+func (task *Task) IncrementStatValue(stat string, value int64) {
+	if _, ok := task.statValues[stat]; !ok {
+		task.statValues[stat] = &atomic.Int64{}
+		task.statValues[stat].Store(value)
+	}
+	task.statValues[stat].Add(value)
 }
 
 func (task *Task) start() {
