@@ -62,9 +62,14 @@ func (engine *Engine) Add(runner *Runner) {
 	}
 
 	engine.mu.Lock()
-	if engine.Done[runner.Task.ID] > 0 {
-		engine.mu.Unlock()
-		return
+	t := engine.Done[runner.Task.ID]
+	if t > 0 {
+		if engine.options.removeFromHistoryIf(runner.Task.ID, time.Unix(t, 0)) {
+			delete(engine.Done, runner.Task.ID)
+		} else {
+			engine.mu.Unlock()
+			return
+		}
 	}
 	for _, p := range engine.Runners {
 		if p.Task.ID == runner.Task.ID {
