@@ -65,12 +65,21 @@ func (task *Task) StatValue(key string) int64 {
 	return 0
 }
 
-func (task *Task) IncrementStatValue(stat string, value int64) {
-	if _, ok := task.statValues[stat]; !ok {
-		task.statValues[stat] = &atomic.Int64{}
-		task.statValues[stat].Store(value)
+func (task *Task) SetStatValue(key string, value int64) {
+	_, ok := task.statValues[key]
+	if ok {
+		task.statValues[key].Store(value)
+	} else {
+		task.statValues[key] = &atomic.Int64{}
+		task.statValues[key].Store(value)
 	}
-	task.statValues[stat].Add(value)
+}
+
+func (task *Task) IncrementStatValue(key string, value int64) {
+	if _, ok := task.statValues[key]; !ok {
+		task.SetStatValue(key, value)
+	}
+	task.statValues[key].Add(value)
 }
 
 func (task *Task) start() {
