@@ -30,7 +30,7 @@ func (r *Runner) AddProcess(p func() error) error {
 
 func (r *Runner) Run() error {
 	if r.process != nil {
-		if r.HasStarted() {
+		if r.HasStarted() || r.MustInterrupt() {
 			return nil
 		}
 		r.Task.start()

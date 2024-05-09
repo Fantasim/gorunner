@@ -18,6 +18,7 @@ type Task struct {
 	//args
 	Args map[string]interface{}
 
+	quit bool
 	//errors
 	retry int
 	err   error
@@ -37,7 +38,16 @@ func newTask(ID string) *Task {
 		Steps:      []time.Time{},
 		statValues: map[string]*atomic.Int64{},
 		Args:       map[string]interface{}{},
+		quit:       false,
 	}
+}
+
+func (task *Task) Interrupt() {
+	task.quit = true
+}
+
+func (task *Task) MustInterrupt() bool {
+	return task.quit
 }
 
 func (task *Task) AreArgsEqual(args map[string]interface{}) bool {
