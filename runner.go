@@ -1,26 +1,23 @@
 package gorunner
 
+import "log"
+
 type Runner struct {
 	*Task
 	process func() error
 }
 
 func NewRunner(taskID string) *Runner {
-	task := newTask(taskID)
 	return &Runner{
-		Task:    task,
+		Task:    newTask(taskID),
 		process: nil,
 	}
 }
 
 func NewRunnerWithRetryCount(taskID string, retryCount int) *Runner {
-	task := newTask(taskID)
-	task.retry = retryCount
-
-	return &Runner{
-		Task:    task,
-		process: nil,
-	}
+	r := NewRunner(taskID)
+	r.retry = retryCount
+	return r
 }
 
 func (r *Runner) AddProcess(p func() error) error {
@@ -39,5 +36,6 @@ func (r *Runner) Run() error {
 		r.SetError(err)
 		return err
 	}
+	log.Panicf("Runner %s has no process", r.ID)
 	return nil
 }
