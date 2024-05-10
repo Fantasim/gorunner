@@ -1,6 +1,7 @@
 package gorunner
 
 import (
+	"log"
 	"sync/atomic"
 	"time"
 )
@@ -12,7 +13,7 @@ type Task struct {
 	endedAt   time.Time
 
 	//logging
-	Steps      []time.Time
+	steps      []time.Time
 	statValues map[string]*atomic.Int64
 
 	//args
@@ -20,11 +21,15 @@ type Task struct {
 
 	quit bool
 	//errors
-	retry int
-	err   error
+	retry         int
+	retryDisabled bool
+	err           error
 }
 
 func (t *Task) AddArgs(key string, v interface{}) {
+	if t.HasStarted() {
+		log.Panic("Cannot add args to a task that has already started")
+	}
 	if t.Args == nil {
 		t.Args = map[string]interface{}{}
 	}
@@ -33,12 +38,14 @@ func (t *Task) AddArgs(key string, v interface{}) {
 
 func newTask(ID string) *Task {
 	return &Task{
-		ID:         ID,
-		err:        nil,
-		Steps:      []time.Time{},
-		statValues: map[string]*atomic.Int64{},
-		Args:       map[string]interface{}{},
-		quit:       false,
+		ID:            ID,
+		err:           nil,
+		steps:         []time.Time{},
+		statValues:    map[string]*atomic.Int64{},
+		Args:          map[string]interface{}{},
+		quit:          false,
+		retry:         0,
+		retryDisabled: false,
 	}
 }
 
@@ -64,7 +71,7 @@ func (task *Task) RetryCount() int {
 }
 
 func (task *Task) AddStep() {
-	task.Steps = append(task.Steps, time.Now())
+	task.steps = append(task.steps, time.Now())
 }
 
 func (task *Task) StatValue(key string) int64 {
@@ -129,14 +136,18 @@ func (task *Task) IsRunning() bool {
 }
 
 func (task *Task) CountSteps() int {
-	return len(task.Steps)
+	return len(task.steps)
 }
 
 func (task *Task) LastStep() time.Time {
-	if len(task.Steps) == 0 {
+	if len(task.steps) == 0 {
 		return time.Time{}
 	}
-	return task.Steps[len(task.Steps)-1]
+	return task.steps[len(task.steps)-1]
+}
+
+func (t *Task) DisableRetry() {
+	t.retryDisabled = true
 }
 
 func GetArg[T any](args map[string]interface{}, key string) (T, bool) {

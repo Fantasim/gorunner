@@ -8,27 +8,44 @@ import (
 )
 
 type Engine struct {
-	Runners []*Runner
-	wg      *sync.WaitGroup
-	Done    map[string]int64
-	mu      sync.RWMutex
-	stop    bool
-	options engineOptions
+	Runners     []*Runner
+	wg          *sync.WaitGroup
+	done        map[string]int64
+	mu          sync.RWMutex
+	stop        bool
+	options     engineOptions
+	pausedUntil time.Time
 }
 
 var ID int = 1
 
 func NewEngine(options *engineOptions) *Engine {
 	e := &Engine{
-		wg:      &sync.WaitGroup{},
-		Runners: []*Runner{},
-		Done:    map[string]int64{},
-		mu:      sync.RWMutex{},
-		stop:    false,
-		options: *options,
+		wg:          &sync.WaitGroup{},
+		Runners:     []*Runner{},
+		done:        map[string]int64{},
+		mu:          sync.RWMutex{},
+		stop:        false,
+		options:     *options,
+		pausedUntil: time.Time{},
 	}
 	ID++
 	return e
+}
+
+func (e *Engine) Pause(forDuration time.Duration) {
+	if forDuration <= 0 {
+		e.Execute()
+		return
+	}
+
+	e.pausedUntil = time.Now().Add(forDuration)
+	//call after end of the duration
+	go func() {
+		time.Sleep(forDuration)
+		e.pausedUntil = time.Time{}
+		e.Execute()
+	}()
 }
 
 func (e *Engine) WaitForRunningTasks() {
@@ -43,6 +60,21 @@ func (engine *Engine) CountRunning() int {
 		}
 	}
 	return count
+}
+
+func (engine *Engine) CountDone() int {
+	return len(engine.done)
+}
+
+func (engine *Engine) CountQueued() int {
+	return len(engine.Runners) - engine.CountRunning()
+}
+
+func (engine *Engine) IsTaskDone(taskID string) bool {
+	engine.mu.RLock()
+	defer engine.mu.RUnlock()
+	_, ok := engine.done[taskID]
+	return ok
 }
 
 func (engine *Engine) Remove(r *Runner) {
@@ -62,10 +94,10 @@ func (engine *Engine) Add(runner *Runner) {
 	}
 
 	engine.mu.Lock()
-	t := engine.Done[runner.Task.ID]
+	t := engine.done[runner.Task.ID]
 	if t > 0 {
 		if engine.options.removeFromHistoryIf(runner.Task.ID, time.Unix(t, 0)) {
-			delete(engine.Done, runner.Task.ID)
+			delete(engine.done, runner.Task.ID)
 		} else {
 			engine.mu.Unlock()
 			return
@@ -85,7 +117,7 @@ func (engine *Engine) Add(runner *Runner) {
 
 func (engine *Engine) PrintStatus() {
 	countRunning := engine.CountRunning()
-	fmt.Printf("Engine status: Running: %d, Done: %d, Waiting: %d\n", countRunning, len(engine.Done), len(engine.Runners)-countRunning)
+	fmt.Printf("Engine status: Running: %d, Done: %d, Waiting: %d\n", countRunning, len(engine.done), len(engine.Runners)-countRunning)
 }
 
 func (engine *Engine) handleRunnersDone() {
@@ -95,14 +127,14 @@ func (engine *Engine) handleRunnersDone() {
 		if task.IsDone() {
 			if task.GetError() == nil {
 				engine.mu.Lock()
-				engine.Done[task.ID] = time.Now().Unix()
+				engine.done[task.ID] = time.Now().Unix()
 				engine.mu.Unlock()
 				engine.Remove(runner)
 			} else {
 				log.Printf("Error running (%s) process: %s", task.ID, task.GetError().Error())
 				newR := NewRunnerWithRetryCount(task.ID, task.RetryCount()+1)
 				engine.Remove(runner)
-				if runner.RetryCount() < engine.options.maxRetry {
+				if runner.RetryCount() < engine.options.maxRetry && !runner.retryDisabled {
 					go func(r *Runner) {
 						time.Sleep(engine.options.retryInterval)
 						engine.Add(r)
@@ -114,7 +146,7 @@ func (engine *Engine) handleRunnersDone() {
 }
 
 func (engine *Engine) Execute() {
-	if engine.stop {
+	if engine.stop || engine.pausedUntil.After(time.Now()) {
 		return
 	}
 
@@ -166,7 +198,6 @@ func (engine *Engine) StopRunnersByArgs(args map[string]interface{}) {
 		}
 		time.Sleep(1 * time.Second)
 	}
-	//stop the sets
 }
 
 func (engine *Engine) StopAll() {
