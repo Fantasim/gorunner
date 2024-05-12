@@ -119,7 +119,7 @@ func (task *Task) EndedAt() time.Time {
 	return task.endedAt
 }
 
-func (task *Task) SetError(err error) {
+func (task *Task) setError(err error) {
 	task.err = err
 }
 

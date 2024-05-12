@@ -39,9 +39,9 @@ func (r *Runner) Run() error {
 			return nil
 		}
 		r.Task.start()
-		defer r.Task.end()
 		err := r.process()
-		r.SetError(err)
+		r.Task.end()
+		r.setError(err)
 		if r.processCallback != nil {
 			go r.processCallback(r)
 		}
