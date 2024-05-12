@@ -7,7 +7,7 @@ import (
 type Runner struct {
 	*Task
 	process         func() error
-	processCallback func(err error) error
+	processCallback func(runner *Runner)
 }
 
 func NewRunner(taskID string) *Runner {
@@ -23,12 +23,14 @@ func NewRunnerWithRetryCount(taskID string, retryCount int) *Runner {
 	return r
 }
 
-func (r *Runner) AddProcess(p func() error) {
+func (r *Runner) AddProcess(p func() error) *Runner {
 	r.process = p
+	return r
 }
 
-func (r *Runner) AddProcessCallback(c func(err error) error) {
+func (r *Runner) AddProcessCallback(c func(runner *Runner)) *Runner {
 	r.processCallback = c
+	return r
 }
 
 func (r *Runner) Run() error {
@@ -41,7 +43,7 @@ func (r *Runner) Run() error {
 		err := r.process()
 		r.SetError(err)
 		if r.processCallback != nil {
-			go r.processCallback(err)
+			go r.processCallback(r)
 		}
 		return err
 	}
