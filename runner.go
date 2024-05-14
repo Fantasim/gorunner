@@ -13,8 +13,10 @@ type Runner struct {
 
 func NewRunner(taskID string) *Runner {
 	return &Runner{
-		Task:    newTask(taskID),
-		process: nil,
+		Task:            newTask(taskID),
+		process:         nil,
+		processCallback: nil,
+		runningFilter:   nil,
 	}
 }
 

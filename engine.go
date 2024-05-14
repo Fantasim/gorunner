@@ -54,6 +54,8 @@ func (e *Engine) WaitForRunningTasks() {
 
 func (engine *Engine) CountRunning() int {
 	count := 0
+	engine.mu.RLock()
+	defer engine.mu.RUnlock()
 	for _, runner := range engine.Runners {
 		if runner.IsRunning() {
 			count++
@@ -63,11 +65,16 @@ func (engine *Engine) CountRunning() int {
 }
 
 func (engine *Engine) CountDone() int {
+	engine.mu.RLock()
+	defer engine.mu.RUnlock()
 	return len(engine.done)
 }
 
 func (engine *Engine) CountQueued() int {
-	return len(engine.Runners) - engine.CountRunning()
+	engine.mu.RLock()
+	size := len(engine.Runners)
+	engine.mu.RUnlock()
+	return size - engine.CountRunning()
 }
 
 func (engine *Engine) IsTaskDone(taskID string) bool {
@@ -127,7 +134,6 @@ func (engine *Engine) PrintStatus() {
 
 func (engine *Engine) handleRunnersDone() {
 	for _, runner := range engine.Runners {
-
 		if runner.IsDone() {
 			if runner.GetError() == nil {
 				engine.mu.Lock()
