@@ -10,7 +10,7 @@ type engineOptions struct {
 	maxRetry              int
 	name                  string
 	retryInterval         time.Duration
-	removeFromHistoryIf   func(taskID string, lastExecutionTime time.Time) bool
+	shouldRunAgain        func(taskID string, lastExecutionTime time.Time) bool
 }
 
 func NewEngineOptions() *engineOptions {
@@ -19,12 +19,12 @@ func NewEngineOptions() *engineOptions {
 		maxRetry:              3,
 		name:                  strconv.Itoa(ID),
 		retryInterval:         time.Second,
-		removeFromHistoryIf:   func(taskID string, lastExecutionTime time.Time) bool { return false },
+		shouldRunAgain:        func(taskID string, lastExecutionTime time.Time) bool { return true },
 	}
 }
 
-func (o *engineOptions) SetRemoveFromHistoryIf(removeFromHistoryIf func(taskID string, lastExecutionTime time.Time) bool) *engineOptions {
-	o.removeFromHistoryIf = removeFromHistoryIf
+func (o *engineOptions) SetshouldRunAgain(shouldRunAgain func(taskID string, lastExecutionTime time.Time) bool) *engineOptions {
+	o.shouldRunAgain = shouldRunAgain
 	return o
 }
 
