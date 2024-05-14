@@ -175,12 +175,13 @@ func (engine *Engine) Execute() {
 			if runner.runningFilter != nil {
 				found := false
 				for _, r := range engine.Runners {
-					if runner.runningFilter(r) {
+					if runner.runningFilter(r) && r.IsRunning() {
 						found = true
 						break
 					}
 				}
 				if found {
+					//shift task to the end of the queue
 					go func() {
 						time.Sleep(1 * time.Second)
 						engine.Execute()
