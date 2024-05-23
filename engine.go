@@ -179,15 +179,8 @@ func (engine *Engine) Execute() {
 
 		if !runner.IsDone() && !runner.IsRunning() {
 			if runner.runningFilter != nil {
-				found := false
-				for _, r := range engine.Runners {
-					if runner.runningFilter(r) && r.IsRunning() {
-						found = true
-						break
-					}
-				}
-				if found {
-					//shift task to the end of the queue
+				ok := runner.runningFilter(engine, runner)
+				if !ok {
 					go func() {
 						time.Sleep(1 * time.Second)
 						engine.Execute()
@@ -205,6 +198,16 @@ func (engine *Engine) Execute() {
 			break
 		}
 	}
+}
+
+func (engine *Engine) ListRunningByArgs(args map[string]interface{}) []*Runner {
+	running := []*Runner{}
+	for _, runner := range engine.Runners {
+		if runner.IsRunning() && runner.AreArgsEqual(args) {
+			running = append(running, runner)
+		}
+	}
+	return running
 }
 
 func (engine *Engine) CountRunningByArgs(args map[string]interface{}) int {
