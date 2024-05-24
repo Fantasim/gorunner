@@ -41,7 +41,7 @@ func (t *Task) AddArgs(key string, v interface{}) {
 }
 
 func newTask(ID string) *Task {
-	return &Task{
+	t := &Task{
 		ID:            ID,
 		err:           nil,
 		steps:         []time.Time{},
@@ -51,6 +51,10 @@ func newTask(ID string) *Task {
 		retry:         0,
 		retryDisabled: false,
 	}
+	t.SetStatValue(initialTaskSizeKey, 0)
+	t.SetStatValue(currentTaskSizeKey, 0)
+	t.SetStatValue(maxTaskSizeKey, 0)
+	return t
 }
 
 func (task *Task) SetRetryCount(count int) {
@@ -137,10 +141,13 @@ func (task *Task) SetSize() sizeSetter {
 				return
 			}
 			if size > 0 {
-				if task.Size().Initial() != 0 {
+				if task.Size().Initial() > 0 {
 					log.Panic("Initial task size cannot be set more than once:", task.ID)
 				}
 				task.SetStatValue(initialTaskSizeKey, size)
+				if task.Size().Current() == 0 {
+					task.SetSize().Current(size)
+				}
 			}
 		},
 		Current: func(size int64) {
@@ -165,7 +172,7 @@ func (task *Task) SetSize() sizeSetter {
 			}
 
 			if size > 0 {
-				if task.Size().Max() != 0 {
+				if task.Size().Max() > 0 {
 					log.Panic("Max task size cannot be set more than once:", task.ID)
 				}
 				task.SetStatValue(maxTaskSizeKey, size)
