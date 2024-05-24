@@ -175,11 +175,14 @@ func (engine *Engine) Execute() {
 
 	engine.handleRunnersDone()
 
-	for _, runner := range engine.Runners {
+	runningRunners := engine.ListRunningByArgs(nil)
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
 
+	for _, runner := range engine.Runners {
 		if !runner.IsDone() && !runner.IsRunning() {
 			if runner.runningFilter != nil {
-				ok := runner.runningFilter(engine, runner)
+				ok := runner.runningFilter(runningRunners, runner)
 				if !ok {
 					go func() {
 						time.Sleep(1 * time.Second)
@@ -202,6 +205,8 @@ func (engine *Engine) Execute() {
 
 func (engine *Engine) ListRunningByArgs(args map[string]interface{}) []*Runner {
 	running := []*Runner{}
+	engine.mu.RLock()
+	defer engine.mu.RUnlock()
 	for _, runner := range engine.Runners {
 		if runner.IsRunning() && runner.AreArgsEqual(args) {
 			running = append(running, runner)

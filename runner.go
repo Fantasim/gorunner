@@ -8,7 +8,7 @@ type Runner struct {
 	*Task
 	process         func() error
 	processCallback func(engine *Engine, runner *Runner)
-	runningFilter   (func(e *Engine, r *Runner) bool)
+	runningFilter   func(runnings []*Runner, currentRunner *Runner) bool
 }
 
 func NewRunner(taskID string) *Runner {
@@ -27,7 +27,7 @@ func newRunnerWithRetryCount(taskID string, retryCount int) *Runner {
 }
 
 // AddRunningFilter adds a filter to the runner, calling in the function all the current queued and running runners before running. If the function returns false, the runner will be queued again.
-func (r *Runner) AddRunningFilter(f func(e *Engine, r *Runner) bool) *Runner {
+func (r *Runner) AddRunningFilter(f func(runnings []*Runner, currentRunner *Runner) bool) *Runner {
 	r.runningFilter = f
 	return r
 }
