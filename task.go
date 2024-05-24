@@ -91,18 +91,14 @@ func (task *Task) Percent() float64 {
 		return 100
 	}
 	initial := task.Size().Initial()
-	current := task.Size().Current() - initial
-	total := max - initial
-
-	return float64(current) / float64(total) * 100
+	return (float64(task.Size().Current()-initial) / float64(max-initial)) * 100
 }
 
 // ETA returns the estimated time of arrival of the task only if the task has sizes set
 func (task *Task) ETA() time.Duration {
 	percent := task.Percent()
 	if percent > 0 && percent < 100 {
-		elapsed := time.Since(task.StartedAt())
-		eta := time.Duration(float64(elapsed) / percent * (100 - percent))
+		eta := time.Duration(float64(task.Timer()) / percent * (100 - percent))
 		return eta
 	}
 	return 0
