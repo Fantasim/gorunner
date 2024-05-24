@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+const currentTaskSizeKey = "CURRENT_TASK_SIZE__"
+const maxTaskSizeKey = "MAX_TASK_SIZE__"
+
 type Task struct {
 	//monitoring
 	ID        string
@@ -46,6 +49,69 @@ func newTask(ID string) *Task {
 		quit:          false,
 		retry:         0,
 		retryDisabled: false,
+	}
+}
+
+func (task *Task) SetRetryCount(count int) {
+	task.retry = count
+}
+
+// SizePerMillisecond returns the size added on average per millisecond since the task started
+func (task *Task) SizePerMillisecond() float64 {
+	currentSize := task.CurrentSize()
+	if currentSize == 0 {
+		return 0
+	}
+	return float64(currentSize) / float64(time.Since(task.StartedAt()).Milliseconds())
+}
+
+// MaxSize returns the max size of the task (if set)
+func (task *Task) MaxSize() int64 {
+	return task.StatValue(maxTaskSizeKey)
+}
+
+// CurrentSize returns the current size of the task (if set)
+func (task *Task) CurrentSize() int64 {
+	return task.StatValue(currentTaskSizeKey)
+}
+
+// Percent returns the percentage of the task that has been accomplished only if the task has sizes set
+func (task *Task) Percent() float64 {
+	max := task.MaxSize()
+	if !task.HasStarted() || max == 0 {
+		return 0
+	}
+	if task.IsDone() {
+		return 100
+	}
+	current := task.CurrentSize()
+	if current == 0 {
+		return 0
+	}
+	return float64(current) / float64(max) * 100
+}
+
+// ETA returns the estimated time of arrival of the task only if the task has sizes set
+func (task *Task) ETA() time.Duration {
+	percent := task.Percent()
+	if percent > 0 && percent < 100 {
+		elapsed := time.Since(task.StartedAt())
+		eta := time.Duration(float64(elapsed) / percent * (100 - percent))
+		return eta
+	}
+	return 0
+}
+
+/* Size allows to set the current and max size of the task : to quantify the progress of the task */
+func (task *Task) SetSizes(current int64, max int64) {
+	if task.IsDone() {
+		return
+	}
+	if current > 0 {
+		task.SetStatValue(currentTaskSizeKey, current)
+	}
+	if max > 0 {
+		task.SetStatValue(maxTaskSizeKey, max)
 	}
 }
 
