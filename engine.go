@@ -29,6 +29,7 @@ func NewEngine(options *engineOptions) *Engine {
 		stop:        false,
 		options:     *options,
 		pausedUntil: time.Time{},
+		muRunner:    sync.RWMutex{},
 	}
 	ID++
 	return e
