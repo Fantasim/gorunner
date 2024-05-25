@@ -49,6 +49,7 @@ func (r *Runner) Run(engine *Engine) error {
 	if r.process != nil {
 		engine.muRunner.Lock()
 		if r.HasStarted() || r.MustInterrupt() {
+			engine.muRunner.Unlock()
 			return nil
 		}
 		r.Task.start()
