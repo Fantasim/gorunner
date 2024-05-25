@@ -9,6 +9,7 @@ import (
 const currentTaskSizeKey = "CURRENT_TASK_SIZE__"
 const maxTaskSizeKey = "MAX_TASK_SIZE__"
 const initialTaskSizeKey = "INITIAL_TASK_SIZE__"
+const lastProgressTimeKey = "LAST_PROGRESS_TIME__"
 
 type Task struct {
 	//monitoring
@@ -67,7 +68,7 @@ func (task *Task) SizePerMillisecond() float64 {
 	if currentSize == 0 {
 		return 0
 	}
-	return float64(currentSize-task.Size().Initial()) / float64(time.Since(task.StartedAt()).Milliseconds())
+	return float64(currentSize-task.Size().Initial()) / float64(task.Timer().Milliseconds())
 }
 
 // Timer returns the time elapsed since the task started
@@ -90,6 +91,7 @@ func (task *Task) Percent() float64 {
 	if task.IsDone() {
 		return 100
 	}
+
 	initial := task.Size().Initial()
 	return (float64(task.Size().Current()-initial) / float64(max-initial)) * 100
 }
@@ -108,6 +110,15 @@ type sizeGetter struct {
 	Initial func() int64
 	Current func() int64
 	Max     func() int64
+}
+
+// LastProgress returns the last time the task made progress : the task size has been updated
+func (task *Task) LastProgress() time.Time {
+	unixNano := task.StatValue(lastProgressTimeKey)
+	if unixNano == 0 {
+		return task.startedAt
+	}
+	return time.Unix(0, unixNano)
 }
 
 func (task *Task) Size() sizeGetter {
@@ -159,6 +170,7 @@ func (task *Task) SetSize() sizeSetter {
 				if max > 0 && size > max {
 					size = max
 				}
+				task.SetStatValue(lastProgressTimeKey, time.Now().UnixNano())
 				task.SetStatValue(currentTaskSizeKey, size)
 			}
 		},
