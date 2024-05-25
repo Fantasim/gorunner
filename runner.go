@@ -45,12 +45,14 @@ func (r *Runner) AddProcessCallback(c func(engine *Engine, runner *Runner)) *Run
 }
 
 // Run executes the runner process and calls the callback if it is set. (called in a goroutine by the engine)
-func (r *Runner) Run() error {
+func (r *Runner) Run(engine *Engine) error {
 	if r.process != nil {
+		engine.muRunner.Lock()
 		if r.HasStarted() || r.MustInterrupt() {
 			return nil
 		}
 		r.Task.start()
+		engine.muRunner.Unlock()
 		err := r.process()
 		r.setError(err)
 		r.Task.end()

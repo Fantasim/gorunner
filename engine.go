@@ -12,6 +12,7 @@ type Engine struct {
 	wg          *sync.WaitGroup
 	done        map[string]int64
 	mu          sync.RWMutex
+	muRunner    sync.RWMutex
 	stop        bool
 	options     engineOptions
 	pausedUntil time.Time
@@ -194,7 +195,7 @@ func (engine *Engine) Execute() {
 
 			engine.wg.Add(1)
 			go func(runner *Runner, engine *Engine) {
-				runner.Run()
+				runner.Run(engine)
 				engine.wg.Done()
 				engine.Execute()
 			}(runner, engine)
