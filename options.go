@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+var ID int = 1
+
 type engineOptions struct {
 	maxSimultaneousRunner int
 	maxRetry              int

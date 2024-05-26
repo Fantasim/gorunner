@@ -28,7 +28,17 @@ type Task struct {
 	//errors
 	retry         int
 	retryDisabled bool
-	err           error
+
+	err error
+}
+
+func (t *Task) setupForRetry() {
+	t.startedAt = time.Time{}
+	t.endedAt = time.Time{}
+	t.steps = []time.Time{}
+	t.statValues = map[string]*atomic.Int64{}
+	t.retry += 1
+	t.err = nil
 }
 
 func (t *Task) AddArgs(key string, v interface{}) {
@@ -43,12 +53,13 @@ func (t *Task) AddArgs(key string, v interface{}) {
 
 func newTask(ID string) *Task {
 	t := &Task{
-		ID:            ID,
-		err:           nil,
-		steps:         []time.Time{},
-		statValues:    map[string]*atomic.Int64{},
-		Args:          map[string]interface{}{},
-		quit:          false,
+		ID:         ID,
+		err:        nil,
+		steps:      []time.Time{},
+		statValues: map[string]*atomic.Int64{},
+		Args:       map[string]interface{}{},
+		quit:       false,
+
 		retry:         0,
 		retryDisabled: false,
 	}
@@ -56,10 +67,6 @@ func newTask(ID string) *Task {
 	t.SetStatValue(currentTaskSizeKey, 0)
 	t.SetStatValue(maxTaskSizeKey, 0)
 	return t
-}
-
-func (task *Task) SetRetryCount(count int) {
-	task.retry = count
 }
 
 // SizePerMillisecond returns the size added on average per millisecond since the task started
@@ -137,7 +144,7 @@ func (task *Task) Size() sizeGetter {
 
 type sizeSetter struct {
 	Initial func(size int64)
-	Current func(size int64)
+	Current func(size int64, increment bool)
 	Max     func(size int64)
 }
 
@@ -147,49 +154,50 @@ func (task *Task) SetSize() sizeSetter {
 			if task.IsDone() {
 				return
 			}
-			if size > 0 {
-				if task.Size().Initial() > 0 {
-					log.Panic("Initial task size cannot be set more than once:", task.ID)
-				}
-				task.SetStatValue(initialTaskSizeKey, size)
-				if task.Size().Current() == 0 {
-					task.SetSize().Current(size)
-				}
+			if task.Size().Initial() != 0 {
+				log.Panic("Initial task size cannot be set more than once:", task.ID)
+			}
+			task.SetStatValue(initialTaskSizeKey, size)
+			if task.Size().Current() == 0 {
+				task.SetSize().Current(size, false)
 			}
 		},
-		Current: func(size int64) {
+		Current: func(unformatedSize int64, increment bool) {
 			if task.IsDone() {
 				return
 			}
-			if size > 0 {
-				initial := task.Size().Initial()
-				if initial > size {
-					log.Panic("Current task size cannot be less than the initial task size:", task.ID)
-				}
-				max := task.Size().Max()
-				if max > 0 && size > max {
-					size = max
-				}
-				task.SetStatValue(lastProgressTimeKey, time.Now().UnixNano())
-				task.SetStatValue(currentTaskSizeKey, size)
+
+			size := unformatedSize
+			if increment {
+				size += task.Size().Current()
 			}
+
+			initial := task.Size().Initial()
+			if initial > size {
+				log.Panic("Current task size cannot be less than the initial task size:", task.ID)
+			}
+			max := task.Size().Max()
+			if max > 0 && size > max {
+				size = max
+			}
+			task.SetStatValue(lastProgressTimeKey, time.Now().UnixNano())
+			task.SetStatValue(currentTaskSizeKey, size)
+
 		},
 		Max: func(size int64) {
 			if task.IsDone() {
 				return
 			}
 
-			if size > 0 {
-				if task.Size().Max() > 0 {
-					log.Panic("Max task size cannot be set more than once:", task.ID)
-				}
-				task.SetStatValue(maxTaskSizeKey, size)
+			if task.Size().Max() != 0 {
+				log.Panic("Max task size cannot be set more than once:", task.ID)
 			}
+			task.SetStatValue(maxTaskSizeKey, size)
 		},
 	}
 }
 
-func (task *Task) Interrupt() {
+func (task *Task) interrupt() {
 	task.quit = true
 }
 
@@ -287,6 +295,9 @@ func (task *Task) LastStep() time.Time {
 }
 
 func (t *Task) DisableRetry() {
+	if t.HasStarted() {
+		log.Panic("Cannot disable retry for a task that has already started")
+	}
 	t.retryDisabled = true
 }
 
