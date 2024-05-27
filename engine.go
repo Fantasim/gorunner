@@ -139,13 +139,12 @@ func (e *Engine) Execute() {
 		return
 	}
 
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	countRunning := len(e.runningRunners)
-	if countRunning >= e.options.maxSimultaneousRunner {
+	if e.CountRunning() >= e.options.maxSimultaneousRunner {
 		return
 	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	for _, runner := range e.allRunners {
 		if !runner.IsDone() && !runner.IsRunning() {
@@ -165,14 +164,15 @@ func (e *Engine) Execute() {
 			go func(runner *Runner, engine *Engine) {
 				err := runner.Run(engine)
 				if err != nil && (err.Error() == ERROR_RUNNER_ALREADY_STARTED) {
+					go engine.Execute()
 					return
 				}
 
 				engine.mu.Lock()
 				//remove runner from running runners map
-				delete(e.runningRunners, runner.ID)
+				delete(engine.runningRunners, runner.ID)
 				// remove runner from all runners (without mutex lock)
-				e.unsafeCancel(runner)
+				engine.unsafeCancel(runner)
 
 				if err == nil {
 					//setting runner as done in done map
@@ -190,12 +190,12 @@ func (e *Engine) Execute() {
 					//if retry count is less than max retry count and retry is not disabled, add runner again
 					if runner.RetryCount() <= e.options.maxRetry && !runner.retryDisabled {
 						time.AfterFunc(engine.options.retryInterval, func() {
-							e.Add(runner)
+							engine.Add(runner)
 						})
 					}
 				}
 				engine.mu.Unlock()
-				e.Execute()
+				engine.Execute()
 			}(runner, e)
 			return
 		}
