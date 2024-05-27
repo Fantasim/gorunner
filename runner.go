@@ -3,13 +3,14 @@ package gorunner
 import (
 	"errors"
 	"log"
+	"time"
 )
 
 type Runner struct {
 	*Task
 	process         func() error
 	processCallback func(engine *Engine, runner *Runner)
-	runningFilter   func(runnings []*Runner, currentRunner *Runner) bool
+	runningFilter   func(runnings EngineDetails, currentRunner *Runner) bool
 }
 
 func NewRunner(taskID string) *Runner {
@@ -21,8 +22,14 @@ func NewRunner(taskID string) *Runner {
 	}
 }
 
+type EngineDetails struct {
+	Done           map[string]time.Time
+	RunningRunners map[string]*Runner
+	AllRunners     []*Runner
+}
+
 // AddRunningFilter adds a filter to the runner, calling in the function all the current queued and running runners before running. If the function returns false, the runner will be queued again.
-func (r *Runner) AddRunningFilter(f func(runnings []*Runner, currentRunner *Runner) bool) *Runner {
+func (r *Runner) AddRunningFilter(f func(details EngineDetails, currentRunner *Runner) bool) *Runner {
 	if r.HasStarted() {
 		log.Panic("Cannot add running filter to a runner that has already started")
 	}

@@ -10,7 +10,7 @@ import (
 type Engine struct {
 	allRunners     []*Runner
 	runningRunners map[string]*Runner
-	done           map[string]int64
+	done           map[string]time.Time
 
 	mu          sync.RWMutex
 	stopCh      chan struct{}
@@ -21,7 +21,7 @@ type Engine struct {
 func NewEngine(options *engineOptions) *Engine {
 	return &Engine{
 		allRunners:     []*Runner{},
-		done:           make(map[string]int64),
+		done:           make(map[string]time.Time),
 		stopCh:         make(chan struct{}),
 		options:        *options,
 		pausedUntil:    time.Time{},
@@ -109,7 +109,7 @@ func (e *Engine) Add(runner *Runner) {
 	defer e.mu.Unlock()
 
 	if t, ok := e.done[runner.ID]; ok {
-		if !e.options.shouldRunAgain(runner.ID, time.Unix(t, 0)) {
+		if !e.options.shouldRunAgain(runner.ID, t) {
 			return
 		}
 		delete(e.done, runner.ID)
@@ -149,9 +149,16 @@ func (e *Engine) Execute() {
 
 	for _, runner := range e.allRunners {
 		if !runner.IsDone() && !runner.IsRunning() {
-			if runner.runningFilter != nil && !runner.runningFilter(e.RunningRunners(), runner) {
-				time.AfterFunc(time.Second*3, e.Execute)
-				continue
+			if runner.runningFilter != nil {
+				details := EngineDetails{
+					Done:           e.done,
+					RunningRunners: e.runningRunners,
+					AllRunners:     e.allRunners,
+				}
+				if !runner.runningFilter(details, runner) {
+					time.AfterFunc(e.options.retryInterval, e.Execute)
+					continue
+				}
 			}
 
 			e.runningRunners[runner.ID] = runner
@@ -169,7 +176,7 @@ func (e *Engine) Execute() {
 
 				if err == nil {
 					//setting runner as done in done map
-					engine.done[runner.ID] = time.Now().Unix()
+					engine.done[runner.ID] = time.Now()
 					// run callback if required
 					go runner.runCallbackIfRequired(e)
 

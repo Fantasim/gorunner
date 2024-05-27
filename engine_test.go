@@ -1,8 +1,10 @@
 package gorunner
 
 import (
+	"errors"
 	"math/rand"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -44,64 +46,78 @@ func TestRunnerNotRunTwice(t *testing.T) {
 	assert.Equal(t, size, engine.CountDone(), "Runner should be done")
 }
 
-// func TestRunnerProcessErrorHandling(t *testing.T) {
-// 	options := NewEngineOptions().SetMaxSimultaneousRunner(1).SetMaxRetry(1).SetRetryInterval(50 * time.Millisecond)
-// 	engine := NewEngine(options)
+func TestRunnerProcessErrorHandling(t *testing.T) {
+	options := NewEngineOptions().SetMaxSimultaneousRunner(1).SetMaxRetry(1).SetRetryInterval(50 * time.Millisecond)
+	engine := NewEngine(options)
 
-// 	runner := NewRunner("errorRunner")
-// 	processAttempts := 0
-// 	mu := sync.Mutex{}
+	runner := NewRunner("errorRunner")
+	runCount := atomic.Int64{}
 
-// 	runner.AddProcess(func() error {
-// 		mu.Lock()
-// 		defer mu.Unlock()
-// 		processAttempts++
-// 		return errors.New("process error")
-// 	})
+	runner.AddProcess(func() error {
+		runCount.Add(1)
+		return errors.New("process error")
+	})
 
-// 	engine.Add(runner)
+	engine.Add(runner)
 
-// 	go engine.Execute()
+	time.Sleep(300 * time.Millisecond)
 
-// 	time.Sleep(300 * time.Millisecond)
+	engine.WaitForRunningTasks(nil)
+	assert.Equal(t, int64(2), runCount.Load(), "Runner should have retried once after initial error")
+}
 
-// 	mu.Lock()
-// 	assert.Equal(t, 2, processAttempts, "Runner should have retried once after initial error")
-// 	mu.Unlock()
-// }
+func TestFilter(t *testing.T) {
+	options := NewEngineOptions().SetMaxSimultaneousRunner(10).SetRetryInterval(10 * time.Millisecond)
+	engine := NewEngine(options)
 
-// func TestEngineSimultaneousReadWrite(t *testing.T) {
-// 	options := NewEngineOptions().SetMaxSimultaneousRunner(10)
-// 	engine := NewEngine(options)
+	ret := ""
+	mu := sync.Mutex{}
 
-// 	var wg sync.WaitGroup
+	start := time.Now()
 
-// 	for i := 0; i < 50; i++ {
-// 		runner := NewRunner(string(i))
-// 		runner.AddProcess(func() error {
-// 			time.Sleep(50 * time.Millisecond)
-// 			return nil
-// 		})
+	a := NewRunner("a")
+	b := NewRunner("b")
+	c := NewRunner("c")
 
-// 		wg.Add(1)
-// 		go func(r *Runner) {
-// 			defer wg.Done()
-// 			engine.Add(r)
-// 		}(runner)
-// 	}
+	wg := sync.WaitGroup{}
+	wg.Add(3)
 
-// 	// Start the engine execution in a separate goroutine
-// 	go engine.Execute()
+	addProcess := func(r *Runner) {
+		r.AddProcess(func() error {
+			mu.Lock()
+			ret += r.ID
+			mu.Unlock()
+			return nil
+		})
+		r.AddProcessCallback(func(engine *Engine, runner *Runner) {
+			wg.Done()
+		})
+	}
 
-// 	// Concurrently read engine status
-// 	for i := 0; i < 50; i++ {
-// 		wg.Add(1)
-// 		go func() {
-// 			defer wg.Done()
-// 			engine.PrintStatus()
-// 		}()
-// 	}
+	addProcess(a)
+	addProcess(b)
+	addProcess(c)
 
-// 	// Wait for all operations to complete
-// 	wg.Wait()
-// }
+	a.AddRunningFilter(func(details EngineDetails, runner *Runner) bool {
+		_, ok := details.Done["b"]
+		return ok
+	})
+	b.AddRunningFilter(func(details EngineDetails, runner *Runner) bool {
+		_, ok := details.Done["c"]
+		return ok
+	})
+	c.AddRunningFilter(func(details EngineDetails, runner *Runner) bool {
+		return time.Since(start) > 500*time.Millisecond
+	})
+
+	go engine.Add(a)
+	go engine.Add(b)
+	go engine.Add(c)
+
+	wg.Wait()
+	tt := engine.done["c"]
+
+	time.Sleep(time.Millisecond * 5)
+	assert.Equal(t, "cba", ret, "Runner should run in order")
+	assert.Greater(t, tt.Sub(start), 500*time.Millisecond, "Runner c should run after 500ms")
+}
