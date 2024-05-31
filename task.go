@@ -295,9 +295,6 @@ func (task *Task) LastStep() time.Time {
 }
 
 func (t *Task) DisableRetry() {
-	if t.HasStarted() {
-		log.Panic("Cannot disable retry for a task that has already started")
-	}
 	t.retryDisabled = true
 }
 

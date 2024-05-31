@@ -13,7 +13,7 @@ type Engine struct {
 	done           map[string]time.Time
 
 	mu          sync.RWMutex
-	stopCh      chan struct{}
+	quit        bool
 	options     engineOptions
 	pausedUntil time.Time
 }
@@ -22,7 +22,7 @@ func NewEngine(options *engineOptions) *Engine {
 	return &Engine{
 		allRunners:     []*Runner{},
 		done:           make(map[string]time.Time),
-		stopCh:         make(chan struct{}),
+		quit:           false,
 		options:        *options,
 		pausedUntil:    time.Time{},
 		runningRunners: make(map[string]*Runner),
@@ -101,7 +101,7 @@ func (e *Engine) unsafeCancel(r *Runner) {
 }
 
 func (e *Engine) Add(runner *Runner) {
-	if e.stopCh == nil {
+	if e.quit {
 		return
 	}
 
@@ -135,7 +135,7 @@ func (e *Engine) PrintStatus() {
 }
 
 func (e *Engine) Execute() {
-	if e.stopCh == nil || e.pausedUntil.After(time.Now()) {
+	if e.quit || e.pausedUntil.After(time.Now()) {
 		return
 	}
 
@@ -192,6 +192,10 @@ func (e *Engine) Execute() {
 						time.AfterFunc(engine.options.retryInterval, func() {
 							engine.Add(runner)
 						})
+					} else {
+						//if retry count is more than max retry count, add runner to done map
+						engine.done[runner.ID] = time.Now()
+						go runner.runCallbackIfRequired(e)
 					}
 				}
 				engine.mu.Unlock()
@@ -223,7 +227,6 @@ func (e *Engine) CancelRunnersByArgs(args map[string]interface{}) {
 	}
 	e.allRunners = newList
 	e.mu.Unlock()
-
 	e.WaitForRunningTasks(args)
 }
 
@@ -241,8 +244,8 @@ func (e *Engine) CountRunningByArgs(args map[string]interface{}) int {
 }
 
 func (e *Engine) Quit() {
-	close(e.stopCh)
 	e.mu.Lock()
+	e.quit = true
 	for _, runner := range e.allRunners {
 		if runner.IsRunning() {
 			runner.interrupt()
@@ -250,7 +253,5 @@ func (e *Engine) Quit() {
 	}
 	e.mu.Unlock()
 	e.WaitForRunningTasks(nil)
-
 	e.allRunners = nil
-	e.stopCh = nil
 }
